@@ -1,0 +1,137 @@
+# -----------------------------------------------------------------------------
+# Curation rules: how candidates are scored and how the final collection is
+# assembled. Everything here is configurable; scores are evidence-based and
+# every component is stored with its raw evidence (see docs/methodology.md).
+#
+# IMPORTANT: popularity and historical/technical significance are computed as
+# SEPARATE scores and combined only with explicit, documented weights.
+# -----------------------------------------------------------------------------
+
+target_size: 500
+
+# Production types that count as "real-time audiovisual productions" for this
+# collection. Anything not listed here is still kept as a candidate but gets
+# type_score weight * other_type_factor.
+in_scope_types:
+  - demo
+  - intro
+  - 4k
+  - 8k
+  - 16k
+  - 32k
+  - 64k
+  - 1k
+  - 256b
+  - wild
+  - musicdisk
+  - cracktro
+  - invitation
+  - slideshow
+  - layout
+  - demoopener
+
+# Types that are explicitly deprioritised (not deleted, never silently dropped).
+out_of_scope_types:
+  - game
+  - tool
+  - demoopener
+  - demo pack
+
+out_of_scope_type_factor: 0.35
+
+# Score components, 0..1 each before weighting.
+weights:
+  # --- popularity (community reception ONLY, kept separate) ---
+  votes: 0.15              # log-scaled Pouët thumb-ups
+  rank: 0.10               # Pouët all-time rank (lower is better)
+  # --- historical / technical significance ---
+  placement: 0.25          # competition results (1st > 2nd > 3rd > finalist)
+  awards: 0.15             # recorded awards
+  age: 0.05                # historical seniority (early productions are rare)
+  # --- documentation quality (evidence availability, NOT quality of the art) ---
+  video_evidence: 0.10     # an explicit video link exists for this production
+  download_evidence: 0.10  # an original release link exists
+  provenance: 0.05         # credits/groups/platforms recorded
+  type_relevance: 0.05     # in-scope production type
+
+# Popularity and significance sub-scores are reported separately in the exports.
+popularity_weight_keys: [votes, rank]
+significance_weight_keys: [placement, awards, age]
+
+# Placement value mapping (competition rank -> points).
+placement_points:
+  1: 1.00
+  2: 0.80
+  3: 0.65
+  4: 0.50
+  5: 0.40
+  6: 0.30
+  7: 0.20
+  8: 0.15
+# ranks beyond 8 / unknown: 0.10 if the production took part in a final
+participation_points: 0.10
+
+# Missing-video policy (see prompt §7 stage D): a historically important
+# production is NOT penalised heavily for lacking a video. The weight above
+# (video_evidence) is deliberately small; set penalise_missing_video to false
+# to make it informational only.
+penalise_missing_video: true
+
+# ---------------------------------------------------------------------------
+# Diversity: the selection pass fills (platform family x era) cells with caps
+# so that one well-documented platform/era cannot consume the whole budget.
+# ---------------------------------------------------------------------------
+diversity:
+  # Platform families (mapping of raw platform names -> family lives in
+  # src/demoscene_collector/normalization.py PLATFORM_FAMILIES).
+  platform_families:
+    - "PC/MS-DOS"
+    - "Windows"
+    - "Amiga"
+    - "Commodore 64"
+    - "Atari ST"
+    - "Other"
+  eras:
+    - { name: "pre-1990", start: 1900, end: 1989 }
+    - { name: "1990s",    start: 1990, end: 1999 }
+    - { name: "2000s",    start: 2000, end: 2009 }
+    - { name: "2010s",    start: 2010, end: 2019 }
+    - { name: "2020s",    start: 2020, end: 2099 }
+    - { name: "unknown",  start: null, end: null }
+  # Hard cap per (platform family, era) cell in the selected set.
+  max_per_cell: 30
+  # Minimum number of selections per platform family when enough candidates exist.
+  min_per_platform_family: 20
+  # Minimum per era (excluding "unknown"); 0 disables the constraint.
+  min_per_era: 10
+
+# Hard exclusions (matched against normalised title or canonical key).
+exclusions: []
+# Example:
+#   - { pattern: "some demo", reason: "not a real-time production" }
+
+# Selection tie-break: deterministic, always ends with canonical_key.
+tie_break: canonical_key
+
+# ---------------------------------------------------------------------------
+# Confidence thresholds (0..1) used by deduplication and video matching.
+# ---------------------------------------------------------------------------
+thresholds:
+  auto_merge: 0.92       # >= : merge automatically, aliases preserved
+  review: 0.75           # >= : mark needs_review (never auto-merged)
+  # below review : keep as separate candidates
+  video_verified_match: 0.80     # title similarity for a confident video match
+  video_probable_match: 0.60     # otherwise probable_match / needs_review
+
+# ---------------------------------------------------------------------------
+# Verification budgets (network stage).
+# ---------------------------------------------------------------------------
+verification:
+  max_link_checks: 600        # total HTTP requests per verify-links run
+  # files.scene.org is a bulk file server built for exactly this traffic; the
+  # cap was raised from 40 after the initial runs showed 1357 links skipped
+  # for being over the per-host budget.
+  max_link_checks_per_host: 300
+  max_video_checks: 600
+  # Protocols we cannot check over HTTP are recorded as "untested".
+  untestable_schemes: ["ftp", "sftp"]

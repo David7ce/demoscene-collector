@@ -1,0 +1,3 @@
+# Cross-platform Python/Node tooling: force LF so WSL, Windows and CI agree.
+* text=auto eol=lf
+*.bat text eol=crlf

@@ -1,0 +1,95 @@
+# -----------------------------------------------------------------------------
+# Source configuration for demoscene-collector.
+# Every entry maps to an adapter in src/demoscene_collector/source_adapters/.
+# "access_method" describes how the adapter talks to the source; see
+# docs/source_audit.md for the evidence behind each value (audited 2026-10-10).
+# -----------------------------------------------------------------------------
+
+defaults:
+  user_agent: "DemosceneCollector/0.1 (+local research script; contact: local)"
+  timeout_seconds: 20
+  max_retries: 3
+  # Minimum delay between two requests to the same host (seconds).
+  min_interval_seconds: 1.0
+  # Maximum bytes read from a single response (guards against runaway downloads).
+  max_response_bytes: 20000000
+
+sources:
+  pouet:
+    enabled: true
+    base_url: "https://www.pouet.net/"
+    api_base_url: "https://api.pouet.net/"
+    data_url: "https://data.pouet.net/"
+    dump_index_url: "https://data.pouet.net/json.php"
+    terms_url: "https://www.pouet.net/"          # no separate terms page published
+    api_documentation_url: "https://github.com/pouetnet/pouet-api"
+    access_method: "published_json_dump"          # dump preferred; API for detail lookups
+    source_type: "database_dump"
+    # Official documented limit: 15 requests / 60 s per IP (config.inc.php.dist).
+    min_interval_seconds: 4.5
+    dump_datasets: ["prods", "groups", "parties"]
+    dump_dir: "data/input"
+    notes: "Primary discovery source. Dump refreshed weekly (Wednesdays)."
+
+  scene_org:
+    enabled: true
+    base_url: "https://files.scene.org/"
+    terms_url: "https://files.scene.org/faq/"
+    api_documentation_url: null
+    access_method: "single_request_head"          # never crawled
+    source_type: "file_archive"
+    min_interval_seconds: 1.0
+    # URL model (observed 2026-10-10):
+    #   /view/<path>  -> landing page (HTML)
+    #   /get/<path>   -> 302 redirect to a mirror, i.e. the artifact itself
+    landing_prefixes: ["/view/"]
+    direct_prefixes: ["/get/"]
+    notes: "Copyright International Scene Organization ry. Single-link verification only."
+
+  csdb:
+    enabled: true
+    base_url: "https://csdb.dk/"
+    terms_url: "https://csdb.dk/"                 # no separate terms page inspected
+    api_documentation_url: null
+    access_method: "single_request_head"          # HTML scraping deliberately NOT implemented
+    source_type: "web_database"
+    min_interval_seconds: 3.0                     # polite: robots.txt restricts named bots
+    robots_url: "https://csdb.dk/robots.txt"
+    notes: "No API. Used only as cross-reference IDs and as a release-URL host."
+
+  demozoo:
+    enabled: true                                 # probe is always recorded; see notes
+    base_url: "https://demozoo.org/"
+    terms_url: null
+    api_documentation_url: null
+    access_method: "unreachable_probe_only"
+    source_type: "web_database"
+    min_interval_seconds: 4.5
+    probe_timeout_seconds: 12
+    notes: >
+      Unreachable from the audit network on 2026-10-10 (TCP timeout to all Cloudflare
+      addresses; api.demozoo.org does not resolve). No endpoint, schema or auth method is
+      assumed. The adapter performs a reachability probe and records the failure.
+
+  youtube_data_api:
+    enabled: true                                 # used only when an API key is present
+    base_url: "https://www.googleapis.com/youtube/v3/"
+    terms_url: "https://developers.google.com/youtube/terms/api-services-terms-of-use"
+    api_documentation_url: "https://developers.google.com/youtube/v3"
+    access_method: "api_key"                       # YOUTUBE_API_KEY environment variable
+    source_type: "rest_api"
+    min_interval_seconds: 0.2
+    search_quota_per_day: 100                      # documented default: 100 search.list/day
+    # Keyless verification endpoint (no quota, no key) used to confirm linked videos.
+    oembed_url: "https://www.youtube.com/oembed"
+    notes: "search.list costs 100 quota units; default project quota is 10,000 units/day."
+
+  youtube_oembed:
+    enabled: true
+    base_url: "https://www.youtube.com/oembed"
+    terms_url: "https://developers.google.com/youtube/v3/terms"
+    api_documentation_url: "https://developers.google.com/youtube/oembed"
+    access_method: "public_oembed"                 # no key, no quota
+    source_type: "rest_api"
+    min_interval_seconds: 1.0
+    notes: "Returns title + channel + thumbnail only; no duration or publish date."
